@@ -14,9 +14,6 @@ from datetime import datetime as dt, timedelta as td
 from datetime import date
 import db_get as db
 
-data = []
-date1, date2 = None, None
-
 
 def build_banner():
     return html.Div(
@@ -170,14 +167,6 @@ app.layout = html.Div(
 
 
 ####################################################################
-def get_html_page(url):
-    html = None
-    r = requests.get(url)
-    if r.ok:
-        html = r.text
-    return html
-
-
 def get_json(date_begin, date_end):
     full_data = {}
     dt1, dt2 = dt.fromisoformat(date_begin), dt.fromisoformat(date_end)
@@ -201,6 +190,10 @@ def create_URL(date_begin, date_end):
     return "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59".format(date_begin,
                                                                                                           date_end)
 
+
+def create_dev_url(uname, serial, date_begin, date_end):
+    url = "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59/{}/{}"
+    return url.format(date_begin, date_end, uname, serial)
 
 def create_Meteo_URL(date_begin):
     return "https://www.gismeteo.ru/diary/11441/{}/{}/".format(str(date_begin.year), str(date_begin.month), )
@@ -279,6 +272,15 @@ def create_appliances_list(data):
     return res
 
 
+def create_appliances_list_from_db():
+    temp, res = {}, {}
+    data = db.devices()
+    for uname, serial in data:
+        temp["{} ({})".format(uname.replace('%20', ' '), serial)] = [f"{uname.replace('%20', ' ')}|{serial}|{_sensor[0]}" for _sensor in db.sensors(uname, serial)]
+
+    return dict(sorted(temp.items(), key=lambda i: i[0]))
+
+
 def create_devices(data, item):
     res = []
     for i in data[item]['data']:
@@ -295,18 +297,48 @@ def get_info(sensor):
     return sensor[0], sensor[1], sensor[2]
 
 
-def get_data(uName, serial, type):
-    x_arr, y_arr = [], []
-    for item in data:
-        if data[item]['uName'] == uName and data[item]['serial'] == serial:
-            try:
-                x_arr.append(data[item]['Date'])
-                y_arr.append(float(data[item]['data'][type]))
+def get_json_for_dev(uname, serial, start_date, end_date):
+    full_data = {}
+    dt1, dt2 = dt.fromisoformat(start_date), dt.fromisoformat(end_date)
 
+    while dt1 <= dt2:
+        print(f"Getting json log from {dt1.strftime('%Y-%m-%d')} to {(dt1 + td(days=1)).strftime('%Y-%m-%d')}")
+        url = create_dev_url(uname, serial, dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
+        try:
+            f = requests.get(url)
+            print("DONE")
+        except requests.exceptions.RequestException as e:
+            print(e)
+        else:
+            full_data.update(json.loads(f.text))
+        dt1 += td(days=1)
+    return full_data
+
+
+def get_data(values_sens, start_date, end_date):
+    unique_devs = {}
+    for elem in values_sens:
+        uname, serial, _ = elem.split('|')
+        unique_devs[f"{uname}|{serial}"] = None
+
+    for key in unique_devs.keys():
+        uname, serial = key.split('|')
+        unique_devs[key] = get_json_for_dev(uname, serial, start_date, end_date)
+    res = {}
+
+    for elem in values_sens:
+        x_arr, y_arr = [], []
+        uname, serial, sens_name = elem.split('|')
+        data = unique_devs[f"{uname}|{serial}"]
+        for item in data:
+            try:
+                y_arr.append(float(data[item]['data'][sens_name]))
+                x_arr.append(data[item]['Date'])
             except ValueError:
                 continue
+        res[elem] = (x_arr, y_arr)
 
-    return x_arr, y_arr
+    return res
 
 
 def rounding(x_arr):
@@ -340,23 +372,19 @@ def Kalman_filter(x_arr):
 
 
 @app.callback([Output('appliances', 'options'), Output('appliances', 'value')],
-              [Input('date', 'start_date'), Input('date', 'end_date'), dash.dependencies.Input('Online', 'on'),
+              [Input('Online', 'on'),
                Input('upload', 'contents')],
               [State('upload', 'filename'), State('upload', 'last_modified')])
-def update_dropdown(start_date, end_date, on, list_of_contents, list_of_names, list_of_dates):
-    global data, date1, date2
-    if not data or (date1 != start_date or date2 != end_date):
-        date1, date2 = start_date, end_date
+def update_dropdown(on, list_of_contents, list_of_names, list_of_dates):
+    data = None  # Инициализировал потому что ругалась IDE
     if list_of_contents is not None and not on:
         data = parse_contests(list_of_contents, list_of_names, list_of_dates)
         # with open("log.JSON", 'r', encoding='utf-8') as read_file:
         #     data = json.load(read_file)
+        return [dict(label=el, value=el) for el in create_appliances_list(data).keys()], None
     if on:
-        data = get_json(start_date, end_date)
-
-    res = [dict(label=el, value=el) for el in create_appliances_list(data).keys()]
-
-    return res, None
+        # data = get_json(start_date, end_date)
+        return [dict(label=el, value=el) for el in create_appliances_list_from_db().keys()], None
 
 
 @app.callback([Output('sensor', 'options'), Output('sensor', 'value')],
@@ -365,7 +393,7 @@ def update_sensor(appliances):
     res = []
     if appliances is not None:
         for i in appliances:
-            lst = create_appliances_list(data)[i]
+            lst = create_appliances_list_from_db()[i]
             for el in lst:
                 res.append(dict(label=el, value=el))
 
@@ -374,11 +402,11 @@ def update_sensor(appliances):
 
 ####################################################################
 @app.callback(Output('graph', 'figure'),
-              [Input('sensor', 'value'),
+              [Input('sensor', 'value'), Input('date', 'start_date'), Input('date', 'end_date'),
                Input('type', 'value'),
                Input('rounding', 'value'),
-               dash.dependencies.Input('Kalman', 'on')])
-def update_graph(sensor, type_, round_, filter):
+               Input('Kalman', 'on')])
+def update_graph(sensor, start_date, end_date, type_, round_, filter):
     fig = go.Figure()
     fig.update_layout(
         yaxis=dict(
@@ -394,7 +422,8 @@ def update_graph(sensor, type_, round_, filter):
         autosize=True,
         height=710,
         colorway=['rgb(0,48,255)', 'rgb(0,204,58)', 'rgb(255,154,0)',
-                  'rgb(255,0,0)', 'rgb(180,0,210)', 'rgb(0,205,255)', 'rgb(115,90,79)', 'rgb(76,118,76)'],
+                  'rgb(255,0,0)', 'rgb(180,0,210)', 'rgb(0,205,255)',
+                  'rgb(115,90,79)', 'rgb(76,118,76)'],
 
         margin=dict(t=0, b=10, r=80, l=80),
         font_color='white',
@@ -434,28 +463,57 @@ def update_graph(sensor, type_, round_, filter):
         return fig
 
     if sensor != []:
+        """Надо сделать нормальное отображение едениц измерения - например degC - это
+        degree Celsius то есть градусы цельсия"""
         fig.update_layout(yaxis=dict(title=db.units(sensor[0].split('|')[2])[0], titlefont_size=22))
 
+
+    #################################
+    # Working zone
+    """
     for el in sensor:
         uName, serial, item = get_info(el)
 
-        x_arr, y_arr = get_data(uName, serial, item)
+        x_arr, y_arr = get_data(uName, serial, item, start_date, end_date)
 
-        x_arr, y_arr = sort(round_, x_arr, y_arr)
-        if filter:
-            y_arr = Kalman_filter(y_arr)
-        y_arr = rounding(y_arr)
+        
 
+        # Histogram
         if 'group' in type_:
             fig.add_trace(go.Histogram(x=x_arr, y=y_arr, name="{} ({})".format(uName + ' ' + serial, item)))
             fig.update_traces(opacity=0.4)
             # fig.update_traces(opacity=0.4, histnorm="density", histfunc="sum")
             fig.update_layout(barmode='overlay')
         else:
-            fig.add_trace(go.Scatter(x=x_arr, y=y_arr, mode=type_, name="{} ({})".format(uName + ' ' + serial, item),
-                                     hovertemplate="<b>%{y}</b>"))
+    """
+    # print(sensor)
+    data = get_data(sensor, start_date, end_date)
 
+    for key, value in data.items():
+        uname, serial, sens_name = key.split('|')
+        x_arr, y_arr = value
+        x_arr, y_arr = sort(round_, x_arr, y_arr)
+
+        if filter:
+            y_arr = Kalman_filter(y_arr)
+
+        y_arr = rounding(y_arr)
+
+        if 'group' in type_:
+            fig.add_trace(go.Histogram(x=x_arr, y=y_arr, name="{} ({})".format(uname + ' ' + serial, sens_name)))
+            fig.update_traces(opacity=0.4)
+            # fig.update_traces(opacity=0.4, histnorm="density", histfunc="sum")
+            fig.update_layout(barmode='overlay')
+        else:
+            fig.add_trace(go.Scatter(x=x_arr, y=y_arr, mode=type_,
+                                     name="{} ({})".format(uname + ' ' + serial, sens_name),
+                                     hovertemplate="<b>%{y}</b>"))
+    # End of working zone
+    #################################
     return fig
+
+
+server = app.server
 
 
 if __name__ == '__main__':
