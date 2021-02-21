@@ -13,6 +13,7 @@ import json
 from datetime import datetime as dt, timedelta as td
 from datetime import date
 import db_get as db
+
 data = []
 date1, date2 = None, None
 
@@ -115,7 +116,7 @@ def build_right_block():
             html.Div(
                 [
                     dcc.Upload(html.Button('Загрузить JSON', className='button'), id='upload',
-                               style={'padding':'20px 20px 0px 0px'}),
+                               style={'padding': '20px 20px 0px 0px'}),
                     html.Div(
                         daq.BooleanSwitch(
                             id="Kalman",
@@ -126,8 +127,6 @@ def build_right_block():
                         ),
                         # style={'display': 'inline-block'}
                     ),
-
-
 
                     html.Div(
                         daq.BooleanSwitch(
@@ -184,9 +183,8 @@ def get_json(date_begin, date_end):
     dt1, dt2 = dt.fromisoformat(date_begin), dt.fromisoformat(date_end)
 
     while dt1 <= dt2:
-        dt12 = dt1 + td(days=1)
-        print("))))))", str(dt1), str(dt12), sep='\n', end='\n\n')
-        url = create_URL(dt1.strftime('%Y-%m-%d'), dt12.strftime('%Y-%m-%d'))
+        print(f"Getting json log from {dt1.strftime('%Y-%m-%d')} to {(dt1 + td(days=1)).strftime('%Y-%m-%d')}")
+        url = create_URL(dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
         try:
             f = requests.get(url)
             print("DONE")
@@ -201,7 +199,7 @@ def get_json(date_begin, date_end):
 
 def create_URL(date_begin, date_end):
     return "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59".format(date_begin,
-                                                                                                      date_end)
+                                                                                                          date_end)
 
 
 def create_Meteo_URL(date_begin):
@@ -343,8 +341,7 @@ def Kalman_filter(x_arr):
 
 @app.callback([Output('appliances', 'options'), Output('appliances', 'value')],
               [Input('date', 'start_date'), Input('date', 'end_date'), dash.dependencies.Input('Online', 'on'),
-               Input('upload', 'contents')
-               ],
+               Input('upload', 'contents')],
               [State('upload', 'filename'), State('upload', 'last_modified')])
 def update_dropdown(start_date, end_date, on, list_of_contents, list_of_names, list_of_dates):
     global data, date1, date2
@@ -416,7 +413,7 @@ def update_graph(sensor, type_, round_, filter):
         linecolor='Gainsboro',
         gridcolor='Gainsboro',
         zerolinecolor='Gainsboro',
-        #rangeslider_visible=True,
+        # rangeslider_visible=True,
         # rangeselector=dict(
         #     buttons=list([
         #         dict(count=1, label="1H", step="hour", stepmode="backward"),
@@ -462,4 +459,4 @@ def update_graph(sensor, type_, round_, filter):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)  # True если надо получать сообщения об ошибках
+    app.run_server(debug=True)  # True если надо получать сообщения об ошибках
