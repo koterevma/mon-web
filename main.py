@@ -172,7 +172,7 @@ def get_json(date_begin, date_end):
     dt1, dt2 = dt.fromisoformat(date_begin), dt.fromisoformat(date_end)
 
     while dt1 <= dt2:
-        print(f"Getting json log from {dt1.strftime('%Y-%m-%d')} to {(dt1 + td(days=1)).strftime('%Y-%m-%d')}")
+        print(f"Getting json log for {dt1.strftime('%Y-%m-%d')}")
         url = create_URL(dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
         try:
             f = requests.get(url)
@@ -302,7 +302,7 @@ def get_json_for_dev(uname, serial, start_date, end_date):
     dt1, dt2 = dt.fromisoformat(start_date), dt.fromisoformat(end_date)
 
     while dt1 <= dt2:
-        print(f"Getting json log from {dt1.strftime('%Y-%m-%d')} to {(dt1 + td(days=1)).strftime('%Y-%m-%d')}")
+        print(f"Getting json log for {dt1.strftime('%Y-%m-%d')}")
         url = create_dev_url(uname, serial, dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
         try:
             f = requests.get(url)
