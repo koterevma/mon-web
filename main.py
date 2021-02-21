@@ -167,33 +167,10 @@ app.layout = html.Div(
 
 
 ####################################################################
-def get_json(date_begin, date_end):
-    full_data = {}
-    dt1, dt2 = dt.fromisoformat(date_begin), dt.fromisoformat(date_end)
-
-    while dt1 <= dt2:
-        print(f"Getting json log for {dt1.strftime('%Y-%m-%d')}")
-        url = create_URL(dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
-        try:
-            f = requests.get(url)
-            print("DONE")
-        except requests.exceptions.RequestException as e:
-            print(e)
-        else:
-            full_data.update(json.loads(f.text))
-        dt1 += td(days=1)
-
-    return full_data
-
-
-def create_URL(date_begin, date_end):
-    return "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59".format(date_begin,
-                                                                                                          date_end)
-
-
 def create_dev_url(uname, serial, date_begin, date_end):
     url = "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59/{}/{}"
     return url.format(date_begin, date_end, uname, serial)
+
 
 def create_Meteo_URL(date_begin):
     return "https://www.gismeteo.ru/diary/11441/{}/{}/".format(str(date_begin.year), str(date_begin.month), )
@@ -210,24 +187,24 @@ def sorting(y_temp, round_):
 
 
 ####################################################################
-def Create_date(round_, date):
-    New = dt.strptime(date, '%Y-%m-%d %H:%M:%S')
+def create_date(round_, date):
+    new = dt.strptime(date, '%Y-%m-%d %H:%M:%S')
     if round_ == 'day' or round_ == 'MAX' or round_ == 'MIN':
-        return dt(New.year, New.month, New.day, 0, 0, 0)
+        return dt(new.year, new.month, new.day, 0, 0, 0)
     if round_ == 'hour' or round_ == 'hour3':
-        return dt(New.year, New.month, New.day, New.hour, 0, 0)
+        return dt(new.year, new.month, new.day, new.hour, 0, 0)
     if round_ == '5min':
-        return dt(New.year, New.month, New.day, New.hour, New.minute, 0)
+        return dt(new.year, new.month, new.day, new.hour, new.minute, 0)
 
 
 ####################################################################
 def how(date_begin, date_end, how):
     if how == "hour" or how == "day" or how == 'MAX' or how == 'MIN':
-        return Create_date(how, date_begin) == Create_date(how, date_end)
+        return create_date(how, date_begin) == create_date(how, date_end)
     if how == "hour3":
-        return ((Create_date(how, date_end) - Create_date(how, date_begin)).seconds / 3600) < 3
+        return ((create_date(how, date_end) - create_date(how, date_begin)).seconds / 3600) < 3
     if how == "5min":
-        return ((Create_date(how, date_end) - Create_date(how, date_begin)).seconds / 60) < 5
+        return ((create_date(how, date_end) - create_date(how, date_begin)).seconds / 60) < 5
 
 
 ####################################################################
@@ -246,13 +223,13 @@ def sort(round_, x_arr, y_arr):
             if how(date_begin, date_end, round_):
                 y_temp.append(y_arr[i])
             else:
-                x_res.append((Create_date(round_, date_begin).strftime('%Y-%m-%d %H:%M:%S')))
+                x_res.append((create_date(round_, date_begin).strftime('%Y-%m-%d %H:%M:%S')))
                 y_res.append(sorting(y_temp, round_))
                 date_begin = x_arr[i]
                 y_temp = [y_arr[i]]
 
             if i == len(x_arr) - 1:
-                x_res.append((Create_date(round_, date_begin).strftime('%Y-%m-%d %H:%M:%S')))
+                x_res.append((create_date(round_, date_begin).strftime('%Y-%m-%d %H:%M:%S')))
                 y_res.append(sorting(y_temp, round_))
 
         return x_res, y_res
@@ -290,11 +267,6 @@ def create_devices(data, item):
         except ValueError:
             continue
     return res
-
-
-def get_info(sensor):
-    sensor = sensor.split('|')
-    return sensor[0], sensor[1], sensor[2]
 
 
 def get_json_for_dev(uname, serial, start_date, end_date):
@@ -357,7 +329,7 @@ def parse_contests(contents, filename, date):
 
 
 ####################################################################
-def Kalman_filter(x_arr):
+def ralman_filter(x_arr):
     sPsi = 1
     sEta = 50
     x_opt = [x_arr[0]]
@@ -467,26 +439,6 @@ def update_graph(sensor, start_date, end_date, type_, round_, filter):
         degree Celsius то есть градусы цельсия"""
         fig.update_layout(yaxis=dict(title=db.units(sensor[0].split('|')[2])[0], titlefont_size=22))
 
-
-    #################################
-    # Working zone
-    """
-    for el in sensor:
-        uName, serial, item = get_info(el)
-
-        x_arr, y_arr = get_data(uName, serial, item, start_date, end_date)
-
-        
-
-        # Histogram
-        if 'group' in type_:
-            fig.add_trace(go.Histogram(x=x_arr, y=y_arr, name="{} ({})".format(uName + ' ' + serial, item)))
-            fig.update_traces(opacity=0.4)
-            # fig.update_traces(opacity=0.4, histnorm="density", histfunc="sum")
-            fig.update_layout(barmode='overlay')
-        else:
-    """
-    # print(sensor)
     data = get_data(sensor, start_date, end_date)
 
     for key, value in data.items():
@@ -495,7 +447,7 @@ def update_graph(sensor, start_date, end_date, type_, round_, filter):
         x_arr, y_arr = sort(round_, x_arr, y_arr)
 
         if filter:
-            y_arr = Kalman_filter(y_arr)
+            y_arr = ralman_filter(y_arr)
 
         y_arr = rounding(y_arr)
 
@@ -508,12 +460,11 @@ def update_graph(sensor, start_date, end_date, type_, round_, filter):
             fig.add_trace(go.Scatter(x=x_arr, y=y_arr, mode=type_,
                                      name="{} ({})".format(uname + ' ' + serial, sens_name),
                                      hovertemplate="<b>%{y}</b>"))
-    # End of working zone
-    #################################
+
     return fig
 
 
-server = app.server
+server = app.server  # Для деплоя
 
 
 if __name__ == '__main__':
