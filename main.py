@@ -38,7 +38,7 @@ def build_banner():
                     html.A(children="webrobo", href="http://webrobo.mgul.ac.ru:3000/"),
                     html.A(children="dbrobo", href="http://dbrobo.mgul.ac.ru/"),
                     html.A(children="dokuwiki", href="http://dokuwiki.mgul.ac.ru/dokuwiki/doku.php"),
-                    html.A(children="Github", href='https://github.com/koterevma/monitoring')
+                    html.A(children="Github", href='https://github.com/koterevma/mon-web')
                 ]
             )
         ]
