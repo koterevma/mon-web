@@ -1,8 +1,36 @@
 import sqlite3
+import requests
+import json
 from pathlib import Path
 
 working_directory = Path(__file__).parent
 
+def get_sensors(serial, uname):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 '
+                      'Safari/537.36', }
+    # serial, uname = serial_uname.split()
+    url = 'http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/last_measurement/'
+    url += uname + '/' + serial + '/'
+    # print(url)
+    try:
+        f = requests.get(url, headers=headers)
+    except requests.exceptions.RequestException as e:
+        print(e)
+        return None
+    else:
+        data = json.loads(f.text)
+        sens_list = []
+        for r in data:
+            for s in data[r]['data']:
+                try:
+                    float(data[r]['data'][s])
+                except ValueError:
+                    pass
+                else:
+                    sens_list.append(s)
+
+    return sens_list
 
 def sensors(device_name, device_serial):
     conn = sqlite3.connect(working_directory / "mon.db")
@@ -42,3 +70,14 @@ if __name__ == '__main__':  # Пример работы
     print()
     print("Units for BMP280_temp")
     print(units("BMP280_temp"))
+    
+    conn = sqlite3.connect(working_directory / "mon.db")
+    cur = conn.cursor()
+    s = 97
+    for i in get_sensors('01', 'Опорный%20барометр'):
+        cur.execute("INSERT INTO sensors VALUES(?, ?, ?, ?)", (s, 19, i, 'UNKNOWN'))
+        s += 1
+    cur.execute("SELECT * FROM sensors")
+    conn.commit()
+    print(*cur.fetchall(), sep='\n')
+    

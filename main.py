@@ -468,4 +468,4 @@ server = app.server  # Для деплоя
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)  # True если надо получать сообщения об ошибках
+    app.run_server(debug=True, host='0.0.0.0')  # True если надо получать сообщения об ошибках
