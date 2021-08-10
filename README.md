@@ -1,6 +1,15 @@
 # mon-web
-To install and run use
+
+Requirements:
+`python3 python3-venv python3-pip`
+
+Install on *nix
 ```
-pip install -r requirements.txt
-python main.py
+make install
 ```
+
+---
+
+### To run use
+`python3 main.py`
+It will start debug server
