@@ -7,7 +7,6 @@ import dash_bootstrap_components as dbc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
-from bs4 import BeautifulSoup
 import requests
 import json
 from datetime import datetime as dt, timedelta as td
@@ -146,7 +145,7 @@ def build_right_block():
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 app.config["suppress_callback_exceptions"] = True
-app.title = 'BMSTU_Grafics'
+app.title = 'BMSTU Grafics'
 app.layout = html.Div(
     children=[
         build_banner(),
@@ -167,9 +166,16 @@ app.layout = html.Div(
 
 
 ####################################################################
-def create_dev_url(uname, serial, date_begin, date_end):
-    url = "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%2000:00:00/{}%2023:59:59/{}/{}"
-    return url.format(date_begin, date_end, uname, serial)
+def create_dev_url(uname: str, serial: str, date_begin: dt, date_end: dt):
+    url = "http://webrobo.mgul.ac.ru:3000/db_api_REST/not_calibr/log/{}%20{}/{}%20{}/{}/{}"
+    return url.format(
+        date_begin.strftime('%Y-%m-%d'),
+        date_begin.strftime('%H:%M:%S'), 
+        date_end.strftime('%Y-%m-%d'),
+        date_end.strftime('%H:%M:%S'),
+        uname,
+        serial
+    )
 
 
 def create_Meteo_URL(date_begin):
@@ -250,7 +256,7 @@ def create_appliances_list(data):
 
 
 def create_appliances_list_from_db():
-    temp, res = {}, {}
+    temp = {}
     data = db.devices()
     for uname, serial in data:
         temp["{} ({})".format(uname.replace('%20', ' '), serial)] = [f"{uname.replace('%20', ' ')}|{serial}|{_sensor[0]}" for _sensor in db.sensors(uname, serial)]
@@ -272,18 +278,19 @@ def create_devices(data, item):
 def get_json_for_dev(uname, serial, start_date, end_date):
     full_data = {}
     dt1, dt2 = dt.fromisoformat(start_date), dt.fromisoformat(end_date)
-
+    delta = td(hours=1)
     while dt1 <= dt2:
-        print(f"Getting json log for {dt1.strftime('%Y-%m-%d')}")
-        url = create_dev_url(uname, serial, dt1.strftime('%Y-%m-%d'), dt1.strftime('%Y-%m-%d'))
+        print(f"Getting json log for {dt1.strftime('%Y-%m-%d %H')}")
+        url = create_dev_url(uname, serial, dt1, dt1 + delta)
         try:
             f = requests.get(url)
             print("DONE")
+            print(f.text)
         except requests.exceptions.RequestException as e:
             print(e)
         else:
             full_data.update(json.loads(f.text))
-        dt1 += td(days=1)
+        dt1 += delta
     return full_data
 
 
@@ -468,4 +475,4 @@ server = app.server  # Для деплоя
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')  # True если надо получать сообщения об ошибках
+    app.run_server(debug=True)  # True если надо получать сообщения об ошибках
